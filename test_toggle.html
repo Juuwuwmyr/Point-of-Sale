@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Toggle</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .toggle-btn { padding: 10px 20px; margin: 5px; border: 1px solid #ccc; cursor: pointer; }
+        .toggle-btn.active { background: #0d9488; color: white; }
+        .input-modern { padding: 8px; margin: 5px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h3>Test Toggle Functionality</h3>
+    
+    <div class="order-type-toggle">
+        <button class="toggle-btn" id="dineInBtn">Dine-In</button>
+        <button class="toggle-btn" id="takeOutBtn">Take-Out</button>
+    </div>
+    <input type="text" id="orderTableNumber" class="input-modern" placeholder="Table #">
+    <input type="hidden" id="orderType" value="1">
+    
+    <div id="output"></div>
+    
+    <script>
+        const dineInBtn = document.getElementById('dineInBtn');
+        const takeOutBtn = document.getElementById('takeOutBtn');
+        const tableInput = document.getElementById('orderTableNumber');
+        const output = document.getElementById('output');
+        
+        function updateActionButtons() {
+            const t = document.getElementById('orderType').value;
+            output.innerHTML = `Order Type: ${t} (1=Dine-In, 2=Take-Out)<br>Table: ${tableInput.value}<br>Disabled: ${tableInput.disabled}`;
+        }
+        
+        if (dineInBtn && takeOutBtn) {
+            dineInBtn.addEventListener('click', () => {
+                dineInBtn.classList.add('active'); 
+                takeOutBtn.classList.remove('active');
+                tableInput.value = ''; 
+                tableInput.disabled = false;
+                document.getElementById('orderType').value = '1';
+                updateActionButtons();
+            });
+            takeOutBtn.addEventListener('click', () => {
+                takeOutBtn.classList.add('active'); 
+                dineInBtn.classList.remove('active');
+                tableInput.value = 'Take-Out'; 
+                tableInput.disabled = true;
+                document.getElementById('orderType').value = '2';
+                updateActionButtons();
+            });
+        }
+        
+        // Initialize
+        dineInBtn.classList.add('active');
+        updateActionButtons();
+    </script>
+</body>
+</html>

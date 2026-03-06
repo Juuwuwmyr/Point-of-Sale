@@ -1,0 +1,60 @@
+/* Reports Page */
+.reports-page {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+.reports-page h1 {
+    font-size: 1.35rem;
+    color: #334155;
+    font-weight: 600;
+    margin-bottom: 1.25rem;
+}
+.reports-stats {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+.reports-stats .stat-card {
+    flex: 1;
+    min-width: 0;
+    background: white;
+    padding: 1rem 1.25rem;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border: 1px solid #e2e8f0;
+    text-align: center;
+}
+.reports-stats .stat-number { font-size: 1.5rem; font-weight: 700; color: #334155; }
+.reports-stats .stat-label { font-size: 0.85rem; color: #64748b; }
+.reports-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+}
+.report-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border: 1px solid #e2e8f0;
+    text-align: center;
+    cursor: pointer;
+    transition: box-shadow 0.2s;
+}
+.report-card:hover {
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+.report-card .report-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.9;
+}
+.report-card .report-title {
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.25rem;
+}
+.report-card .report-desc {
+    font-size: 0.85rem;
+    color: #64748b;
+}

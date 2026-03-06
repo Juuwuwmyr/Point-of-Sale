@@ -1,0 +1,148 @@
+/* App Layout - TopNav + main container (shared across all pages) */
+.top-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    border-radius: 6px;
+    padding: 10px 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e2e8f0;
+    flex-shrink: 0; /* Prevents nav from shrinking */
+}
+.top-nav-left,
+.top-nav-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+.top-nav .logo { margin-bottom: 0; }
+.top-nav .nav-menu {
+    flex-direction: row;
+    gap: 6px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.top-nav .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 5px;
+    text-decoration: none;
+    color: #64748b;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+.top-nav .nav-item:hover {
+    background: #f1f5f9;
+    color: #2c3e50;
+}
+.top-nav .nav-item.active {
+    background: #2c3e50;
+    color: white;
+}
+.top-nav .nav-icon { font-size: 1rem; }
+.top-nav .user-info {
+    margin-bottom: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.top-nav .user-avatar {
+    width: 36px;
+    height: 36px;
+    background: #2c3e50;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: white;
+}
+.top-nav .user-details .welcome-text { display: none; }
+.top-nav .user-details .user-name { font-size: 13px; font-weight: 600; }
+.top-nav .user-details .user-role { font-size: 10px; color: #64748b; }
+.top-nav .logout { margin-top: 0; border-top: none; padding-top: 0; }
+.top-nav .logout .nav-item {
+    padding: 8px 12px;
+    background: #f8fafd;
+    border-radius: 5px;
+    border: 1px solid #e2e8f0;
+    color: #334155;
+}
+.top-nav .logout .nav-item:hover { background: #f1f5f9; }
+
+.app-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100vh; /* Use viewport height instead of min-height */
+    padding: 0 16px 16px 16px;
+    overflow: hidden; /* Prevent wrapper from scrolling */
+}
+
+.app-main-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #eef2f6;
+    border-radius: 8px;
+    overflow: hidden; /* Keep hidden to contain the page content */
+    min-height: 0; /* CRITICAL: Allows flex child to shrink properly */
+}
+
+/* Base page content - handles scrolling by default */
+.page-content {
+    flex: 1;
+    overflow-y: auto; /* This enables scrolling */
+    padding: 20px;
+    min-height: 0; /* CRITICAL: Allows flex child to shrink properly */
+    height: 100%; /* Ensure it takes full height */
+}
+
+/* For pages that need custom scrolling behavior (like kitchen) */
+.page-content.no-scroll {
+    overflow-y: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 0; /* Let inner containers handle padding */
+}
+
+/* Kitchen page specific styles */
+.kitchen-page {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.kitchen-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 20px;
+    gap: 20px;
+    min-height: 0; /* CRITICAL for Firefox */
+}
+
+.kitchen-orders {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 4px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+body {
+    margin: 0;
+}
