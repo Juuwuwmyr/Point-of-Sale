@@ -416,14 +416,32 @@ function showOrderDetailsModal(data) {
         background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center;
     `;
     
-    const itemsHtml = (data.items || []).map((item, index) => `
+    const itemsHtml = (data.items || []).map((item, index) => {
+        let notesDisplay = '';
+        if (item.Notes && item.Notes.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(item.Notes);
+                let parts = [];
+                if (parsed.flavor) parts.push(`Flavor: ${parsed.flavor.Name}`);
+                if (parsed.flavors && parsed.flavors.length > 0) parts.push(`Flavors: ${parsed.flavors.map(f => f.Name).join(', ')}`);
+                if (parsed.modifiers && parsed.modifiers.length > 0) parts.push(`Add-ons: ${parsed.modifiers.map(m => m.Name).join(', ')}`);
+                if (parsed.text) parts.push(`Notes: ${parsed.text}`);
+                notesDisplay = parts.length > 0 ? parts.join('<br>') : '';
+            } catch (e) {
+                notesDisplay = item.Notes;
+            }
+        } else if (item.Notes) {
+            notesDisplay = item.Notes;
+        }
+
+        return `
         <div class="order-item-row" data-item-id="${item.OrderDetailID}" data-index="${index}">
             <div class="item-info">
                 <div class="item-name">${item.ItemName}</div>
                 <div class="item-details">
                     Qty: ${item.Quantity} × ₱${parseFloat(item.UnitPrice).toFixed(2)} = ₱${(item.Quantity * item.UnitPrice).toFixed(2)}
                 </div>
-                ${item.Notes ? `<div class="item-notes">${item.Notes}</div>` : ''}
+                ${notesDisplay ? `<div class="item-notes">${notesDisplay}</div>` : ''}
             </div>
             <div class="item-actions">
                 ${data.order.Status !== 'Paid' && data.order.Status !== 'Ready' ? `
@@ -433,7 +451,7 @@ function showOrderDetailsModal(data) {
                 ` : ''}
             </div>
         </div>
-    `).join('');
+    `}).join('');
     
     modal.innerHTML = `
         <div style="background: white; border-radius: 12px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; padding: 0;">

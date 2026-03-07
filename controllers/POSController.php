@@ -200,11 +200,34 @@ class POSController {
                         $this->order->OrderID = (int)$existing['OrderID'];
                         $this->order->OrderNumber = $existing['OrderNumber'];
                         foreach($data['items'] as $item) {
+                            $itemNotes = $item['notes'] ?? '';
+                            
+                            // Pack flavors and modifiers as JSON if they exist
+                            $hasFlavors = !empty($item['flavors']) || !empty($item['flavor']);
+                            $hasModifiers = !empty($item['modifiers']);
+                            
+                            if ($hasFlavors || $hasModifiers) {
+                                $notesObj = [];
+                                if (!empty($itemNotes)) {
+                                    $notesObj['text'] = $itemNotes;
+                                }
+                                if (!empty($item['flavor'])) {
+                                    $notesObj['flavor'] = $item['flavor'];
+                                }
+                                if (!empty($item['flavors'])) {
+                                    $notesObj['flavors'] = $item['flavors'];
+                                }
+                                if (!empty($item['modifiers'])) {
+                                    $notesObj['modifiers'] = $item['modifiers'];
+                                }
+                                $itemNotes = json_encode($notesObj);
+                            }
+                            
                             $this->order->addOrderItem(
                                 $item['item_id'],
                                 $item['quantity'],
                                 $item['unit_price'],
-                                $item['notes'] ?? ''
+                                $itemNotes
                             );
                         }
                         $this->order->updateTotalAmount();
@@ -226,11 +249,34 @@ class POSController {
                 
                 if($this->order->create()) {
                     foreach($data['items'] as $item) {
+                        $itemNotes = $item['notes'] ?? '';
+                        
+                        // Pack flavors and modifiers as JSON if they exist
+                        $hasFlavors = !empty($item['flavors']) || !empty($item['flavor']);
+                        $hasModifiers = !empty($item['modifiers']);
+                        
+                        if ($hasFlavors || $hasModifiers) {
+                            $notesObj = [];
+                            if (!empty($itemNotes)) {
+                                $notesObj['text'] = $itemNotes;
+                            }
+                            if (!empty($item['flavor'])) {
+                                $notesObj['flavor'] = $item['flavor'];
+                            }
+                            if (!empty($item['flavors'])) {
+                                $notesObj['flavors'] = $item['flavors'];
+                            }
+                            if (!empty($item['modifiers'])) {
+                                $notesObj['modifiers'] = $item['modifiers'];
+                            }
+                            $itemNotes = json_encode($notesObj);
+                        }
+                        
                         $this->order->addOrderItem(
                             $item['item_id'],
                             $item['quantity'],
                             $item['unit_price'],
-                            $item['notes'] ?? ''
+                            $itemNotes
                         );
                     }
                     
