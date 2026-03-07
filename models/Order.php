@@ -257,44 +257,41 @@ class Order {
                   ORDER BY o.OrderDate ASC";
         
         $stmt = $this->conn->prepare($query);
-        $stmt->execute();
-        $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt->execute();
+            $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        if (empty($orders)) return [];
+            if (empty($orders)) return [];
 
-        // Get all items for these orders in one query
-        $orderIds = array_column($orders, 'OrderID');
-        $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
-        
-        $itemQuery = "SELECT od.*, mi.ItemName, v.VariantName,
-                      (SELECT GROUP_STRING FROM (
-                          SELECT od2.OrderDetailID, GROUP_CONCAT(m.ModifierName SEPARATOR ', ') as GROUP_STRING
-                          FROM orderdetails od2
-                          JOIN ordermodifiers om ON od2.OrderDetailID = om.OrderDetailID
-                          JOIN modifiers m ON om.ModifierID = m.ModifierID
-                          GROUP BY od2.OrderDetailID
-                      ) as sub WHERE sub.OrderDetailID = od.OrderDetailID) as Modifiers
-                      FROM orderdetails od
-                      JOIN menuitems mi ON od.ItemID = mi.ItemID
-                      LEFT JOIN variants v ON od.VariantID = v.VariantID
-                      WHERE od.OrderID IN ($placeholders) AND od.Status != 'Cancelled'";
-        
-        $itemStmt = $this->conn->prepare($itemQuery);
-        $itemStmt->execute($orderIds);
-        $allItems = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
+            // Get all items for these orders in one query to make it FAST (1-second sync)
+            $orderIds = array_column($orders, 'OrderID');
+            $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+            
+            $itemQuery = "SELECT od.*, mi.ItemName
+                          FROM orderdetails od
+                          JOIN menuitems mi ON od.ItemID = mi.ItemID
+                          WHERE od.OrderID IN ($placeholders) AND (od.Status IS NULL OR od.Status != 'Cancelled')";
+            
+            $itemStmt = $this->conn->prepare($itemQuery);
+            $itemStmt->execute($orderIds);
+            $allItems = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Group items by OrderID
-        $itemsByOrder = [];
-        foreach ($allItems as $item) {
-            $itemsByOrder[$item['OrderID']][] = $item;
+            // Group items by OrderID
+            $itemsByOrder = [];
+            foreach ($allItems as $item) {
+                $itemsByOrder[$item['OrderID']][] = $item;
+            }
+
+            // Attach items to orders
+            foreach ($orders as &$o) {
+                $o['KitchenItems'] = $itemsByOrder[$o['OrderID']] ?? [];
+            }
+
+            return $orders;
+        } catch (Exception $e) {
+            error_log("Kitchen refresh error: " . $e->getMessage());
+            return [];
         }
-
-        // Attach items to orders
-        foreach ($orders as &$o) {
-            $o['KitchenItems'] = $itemsByOrder[$o['OrderID']] ?? [];
-        }
-
-        return $orders;
     }
     
     public function updateOrderStatus($orderId, $status) {
