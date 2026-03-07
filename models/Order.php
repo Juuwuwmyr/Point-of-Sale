@@ -72,8 +72,12 @@ class Order {
                   JOIN menuitems mi ON od.ItemID = mi.ItemID
                   WHERE od.OrderID = :orderid";
 
-        // Exclude cancelled items if requested (Status column may not exist yet)
-        if ($excludeCancelled) {
+        // Query to check if Status column exists
+        $checkCol = $this->conn->query("SHOW COLUMNS FROM orderdetails LIKE 'Status'");
+        $hasStatusCol = $checkCol && $checkCol->rowCount() > 0;
+
+        // Exclude cancelled items if requested AND the column exists
+        if ($excludeCancelled && $hasStatusCol) {
             $query .= " AND COALESCE(od.Status, 'Active') != 'Cancelled'";
         }
 
