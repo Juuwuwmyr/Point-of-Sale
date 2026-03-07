@@ -74,7 +74,7 @@ class Order {
 
         // Query to check if Status column exists
         $checkCol = $this->conn->query("SHOW COLUMNS FROM orderdetails LIKE 'Status'");
-        $hasStatusCol = $checkCol && $checkCol->rowCount() > 0;
+        $hasStatusCol = $checkCol && ($checkCol->fetch(PDO::FETCH_ASSOC) !== false);
 
         // Exclude cancelled items if requested AND the column exists
         if ($excludeCancelled && $hasStatusCol) {
@@ -248,6 +248,7 @@ class Order {
     }
     
     public function getKitchenOrders() {
+        // First get orders
         $query = "SELECT o.*, u.FullName as CashierName, ot.TypeName 
                   FROM " . $this->table_name . " o
                   LEFT JOIN users u ON o.UserID = u.UserID
@@ -257,8 +258,43 @@ class Order {
         
         $stmt = $this->conn->prepare($query);
         $stmt->execute();
+        $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($orders)) return [];
+
+        // Get all items for these orders in one query
+        $orderIds = array_column($orders, 'OrderID');
+        $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
         
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $itemQuery = "SELECT od.*, mi.ItemName, v.VariantName,
+                      (SELECT GROUP_STRING FROM (
+                          SELECT od2.OrderDetailID, GROUP_CONCAT(m.ModifierName SEPARATOR ', ') as GROUP_STRING
+                          FROM orderdetails od2
+                          JOIN ordermodifiers om ON od2.OrderDetailID = om.OrderDetailID
+                          JOIN modifiers m ON om.ModifierID = m.ModifierID
+                          GROUP BY od2.OrderDetailID
+                      ) as sub WHERE sub.OrderDetailID = od.OrderDetailID) as Modifiers
+                      FROM orderdetails od
+                      JOIN menuitems mi ON od.ItemID = mi.ItemID
+                      LEFT JOIN variants v ON od.VariantID = v.VariantID
+                      WHERE od.OrderID IN ($placeholders) AND od.Status != 'Cancelled'";
+        
+        $itemStmt = $this->conn->prepare($itemQuery);
+        $itemStmt->execute($orderIds);
+        $allItems = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Group items by OrderID
+        $itemsByOrder = [];
+        foreach ($allItems as $item) {
+            $itemsByOrder[$item['OrderID']][] = $item;
+        }
+
+        // Attach items to orders
+        foreach ($orders as &$o) {
+            $o['KitchenItems'] = $itemsByOrder[$o['OrderID']] ?? [];
+        }
+
+        return $orders;
     }
     
     public function updateOrderStatus($orderId, $status) {
