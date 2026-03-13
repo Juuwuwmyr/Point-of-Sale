@@ -304,6 +304,21 @@ class POSController {
         echo json_encode($orders);
     }
     
+    public function archiveAndClearToday() {
+        header('Content-Type: application/json');
+        if (!($_SESSION['is_admin'] ?? false)) {
+            echo json_encode(['success' => false, 'message' => 'Admin only']);
+            return;
+        }
+        try {
+            $date = $_GET['date'] ?? date('Y-m-d');
+            $result = $this->order->archiveAndDeleteSalesForDate($date);
+            echo json_encode(['success' => true, 'date' => $date, 'result' => $result]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+    
     public function getDashboardStats() {
         header('Content-Type: application/json');
         try {
@@ -311,7 +326,8 @@ class POSController {
             $daily = $this->order->getDailySales($today);
             $totalOrders = isset($daily['total_orders']) ? (int)$daily['total_orders'] : 0;
             $totalSales = isset($daily['total_sales']) ? (float)$daily['total_sales'] : 0.0;
-            $averageOrder = $totalOrders > 0 ? $totalSales / $totalOrders : 0.0;
+            
+            $overallSales = $this->order->getOverallSales();
             
             $todayOrders = $this->order->getAll('', $today);
             $openOrders = 0;
@@ -323,7 +339,8 @@ class POSController {
             }
             
             $salesHistory = $this->order->getSalesHistory(7);
-            $topItems = $this->order->getMostPurchasedItems($today, 5);
+            // Retrieving 999 to show all items instead of limiting to 5
+            $topItems = $this->order->getMostPurchasedItems($today, 999);
             $recentOrders = array_slice($todayOrders, 0, 10);
             
             echo json_encode([
@@ -332,7 +349,7 @@ class POSController {
                     'totals' => [
                         'total_orders' => $totalOrders,
                         'total_sales' => $totalSales,
-                        'average_order_value' => $averageOrder,
+                        'overall_sales' => $overallSales,
                         'open_orders' => $openOrders,
                     ],
                     'sales_history' => $salesHistory,
@@ -383,18 +400,45 @@ class POSController {
                     $this->db->exec($alterQuery);
                 }
                 
-                // Update the order detail to mark as cancelled
-                $query = "UPDATE orderdetails SET Status = 'Cancelled' WHERE OrderDetailID = :orderDetailId";
-                $stmt = $this->db->prepare($query);
-                $stmt->bindParam(":orderDetailId", $orderDetailId);
+                // Check current quantity of the order detail
+                $checkQtyQuery = "SELECT Quantity FROM orderdetails WHERE OrderDetailID = :orderDetailId";
+                $qtyStmt = $this->db->prepare($checkQtyQuery);
+                $qtyStmt->bindParam(":orderDetailId", $orderDetailId);
+                $qtyStmt->execute();
+                $itemData = $qtyStmt->fetch(PDO::FETCH_ASSOC);
                 
-                if ($stmt->execute()) {
-                    // Recalculate order total
-                    $this->recalculateOrderTotal($orderDetailId);
+                if ($itemData) {
+                    $currentQty = (int)$itemData['Quantity'];
+                    $actionTaken = '';
                     
-                    echo json_encode(['success' => true, 'message' => 'Order item cancelled successfully']);
+                    if ($currentQty > 1) {
+                        // Reduce quantity by 1
+                        $updateQuery = "UPDATE orderdetails SET Quantity = Quantity - 1 WHERE OrderDetailID = :orderDetailId";
+                        $actionTaken = 'partial';
+                    } else {
+                        // Mark as cancelled completely
+                        $updateQuery = "UPDATE orderdetails SET Status = 'Cancelled' WHERE OrderDetailID = :orderDetailId";
+                        $actionTaken = 'full';
+                    }
+                    
+                    $stmt = $this->db->prepare($updateQuery);
+                    $stmt->bindParam(":orderDetailId", $orderDetailId);
+                    
+                    if ($stmt->execute()) {
+                        // Recalculate order total
+                        $this->recalculateOrderTotal($orderDetailId);
+                        
+                        echo json_encode([
+                            'success' => true, 
+                            'action' => $actionTaken,
+                            'new_quantity' => $currentQty - 1,
+                            'message' => 'Order item updated successfully'
+                        ]);
+                    } else {
+                        echo json_encode(['success' => false, 'message' => 'Failed to cancel order item']);
+                    }
                 } else {
-                    echo json_encode(['success' => false, 'message' => 'Failed to cancel order item']);
+                    echo json_encode(['success' => false, 'message' => 'Order item not found']);
                 }
             } else {
                 echo json_encode(['success' => false, 'message' => 'Invalid request method']);
@@ -516,6 +560,9 @@ case 'updateOrderStatus':
             break;
         case 'getAllCategories':
             $controller->getAllCategories();
+            break;
+        case 'archiveAndClearToday':
+            $controller->archiveAndClearToday();
             break;
         default:
             $controller->index();

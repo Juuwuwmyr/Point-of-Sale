@@ -996,6 +996,15 @@ function clearOrder() {
 
 async function checkoutOrder() {
     if (currentOrder.length === 0) { alert('Add items first.'); return; }
+    
+    const orderType = document.getElementById('orderType').value;
+    const tableInput = document.getElementById('orderTableNumber');
+    if (orderType === '1' && (!tableInput.value || tableInput.value.trim() === '')) {
+        alert('Please enter a Table Number for Dine-In orders.');
+        tableInput.focus();
+        return;
+    }
+
     try {
         const payload = createOrderPayload();
         console.log('🔍 Checkout payload:', payload);
@@ -1021,6 +1030,20 @@ async function checkoutOrder() {
             currentOrder = [];
             updateOrderDisplay();
             document.getElementById('orderNotes').value = '';
+            // Clear table number for next order (especially for Dine-In)
+            const typeEl = document.getElementById('orderType');
+            const tblEl = document.getElementById('orderTableNumber');
+            if (typeEl && tblEl) {
+                if (typeEl.value === '1') {
+                    tblEl.value = '';
+                    tblEl.disabled = false;
+                    tblEl.focus();
+                } else {
+                    // Keep Take-Out indicator visible but reset any stray text
+                    tblEl.value = 'Take-Out';
+                    tblEl.disabled = true;
+                }
+            }
         } else {
             alert('❌ ' + (result.message || 'Error'));
         }
@@ -1094,6 +1117,14 @@ async function payTakeOut() {
         console.log('🔍 No items in order');
         alert('Add items first.'); 
         return; 
+    }
+    
+    const orderType = document.getElementById('orderType').value;
+    const tableInput = document.getElementById('orderTableNumber');
+    if (orderType === '1' && (!tableInput.value || tableInput.value.trim() === '')) {
+        alert('Please enter a Table Number for Dine-In orders before paying.');
+        tableInput.focus();
+        return;
     }
     
     console.log('🔍 Opening payment modal...');

@@ -4,7 +4,6 @@
 $pageTitle = 'Dashboard - E.U.T POS';
 $pageStyles = ['pages/dashboard.css'];
 $pageScripts = [
-    'https://cdn.jsdelivr.net/npm/chart.js',
     'dashboard.js'
 ];
 
@@ -46,8 +45,8 @@ ob_start();
                 📊
             </div>
             <div class="stat-content">
-                <div class="stat-label">AVERAGE ORDER VALUE</div>
-                <div class="stat-number" id="stat-average-order">₱0.00</div>
+                <div class="stat-label">OVERALL SALES</div>
+                <div class="stat-number" id="stat-overall-sales">₱0.00</div>
                 <div class="page-subtitle" id="stat-open-orders">0 open orders</div>
             </div>
         </div>
@@ -55,21 +54,9 @@ ob_start();
 
     <div class="dashboard-main-content">
         <div class="content-left">
-            <div class="chart-section">
+            <div class="chart-section" style="flex: 1; display: flex; flex-direction: column;">
                 <div class="section-header">
-                    <h3>Last 7 Days Sales</h3>
-                </div>
-                <div class="canvas-container">
-                    <canvas id="salesChart"></canvas>
-                    <div id="salesChartEmpty" class="chart-empty" style="display:none;">
-                        No sales data available for the last 7 days.
-                    </div>
-                </div>
-            </div>
-
-            <div class="chart-section">
-                <div class="section-header">
-                    <h3>Top Items Today</h3>
+                    <h3>All Items Sold Today</h3>
                 </div>
                 <div id="topItems" class="top-items-grid">
                     <div class="loading-spinner">Loading top items...</div>

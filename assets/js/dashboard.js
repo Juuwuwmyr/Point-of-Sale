@@ -14,7 +14,6 @@ async function loadDashboard() {
 
         const data = result.data;
         updateStatCards(data.totals || {});
-        renderSalesChart(data.sales_history || []);
         renderTopItems(data.top_items || []);
         renderRecentOrders(data.recent_orders || []);
     } catch (error) {
@@ -26,7 +25,7 @@ async function loadDashboard() {
 function updateStatCards(totals) {
     const totalOrdersEl = document.getElementById('stat-total-orders');
     const totalSalesEl = document.getElementById('stat-total-sales');
-    const avgOrderEl = document.getElementById('stat-average-order');
+    const overallSalesEl = document.getElementById('stat-overall-sales');
     const openOrdersEl = document.getElementById('stat-open-orders');
 
     if (totalOrdersEl) {
@@ -35,104 +34,15 @@ function updateStatCards(totals) {
     if (totalSalesEl) {
         totalSalesEl.textContent = formatCurrency(totals.total_sales || 0);
     }
-    if (avgOrderEl) {
-        const value = totals.average_order_value || 0;
-        avgOrderEl.textContent = value > 0 ? formatCurrency(value) : '₱0.00';
+    if (overallSalesEl) {
+        const value = totals.overall_sales || 0;
+        overallSalesEl.textContent = formatCurrency(value);
     }
     if (openOrdersEl) {
         openOrdersEl.textContent = (totals.open_orders || 0) + ' open orders';
     }
 }
 
-function renderSalesChart(history) {
-    const canvas = document.getElementById('salesChart');
-    const emptyState = document.getElementById('salesChartEmpty');
-
-    if (!canvas) return;
-
-    if (!history.length) {
-        canvas.style.display = 'none';
-        if (emptyState) {
-            emptyState.style.display = 'block';
-        }
-        return;
-    }
-
-    canvas.style.display = 'block';
-    if (emptyState) {
-        emptyState.style.display = 'none';
-    }
-
-    const labels = history.map(row => {
-        // row.sale_date is YYYY-MM-DD
-        try {
-            const d = new Date(row.sale_date);
-            if (!isNaN(d.getTime())) {
-                return d.toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric'
-                });
-            }
-        } catch (e) {
-            // ignore parse errors
-        }
-        return row.sale_date;
-    });
-
-    const values = history.map(row => Number(row.total_sales) || 0);
-
-    const ctx = canvas.getContext('2d');
-
-    // Destroy existing chart instance if re-rendering
-    if (window._salesChart) {
-        window._salesChart.destroy();
-    }
-
-    window._salesChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels,
-            datasets: [{
-                label: 'Sales',
-                data: values,
-                borderColor: '#2563eb',
-                backgroundColor: 'rgba(37, 99, 235, 0.12)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.35,
-                pointRadius: 3,
-                pointBackgroundColor: '#2563eb'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    callbacks: {
-                        label: context => formatCurrency(context.parsed.y || 0)
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    grid: {
-                        display: false
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: value => formatCurrency(value)
-                    }
-                }
-            }
-        }
-    });
-}
 
 function renderTopItems(items) {
     const container = document.getElementById('topItems');

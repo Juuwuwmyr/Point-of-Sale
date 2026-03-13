@@ -141,7 +141,7 @@ async function loadOrders() {
     const actualDate = date || '';
     
     try {
-        const res = await fetch(`controllers/POSController.php?action=getOrders&status=${encodeURIComponent(actualStatus)}&date=${encodeURIComponent(actualDate)}`);
+        const res = await fetch(`controllers/POSController.php?action=getOrders&status=${encodeURIComponent(actualStatus)}&date=${encodeURIComponent(actualDate)}&_=${Date.now()}`);
         
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         
@@ -335,13 +335,15 @@ async function submitPayment() {
         const r = await res.json();
         if (r.success) {
             // Load details and print with payment info
-            const det = await (await fetch(`controllers/POSController.php?action=getOrderDetails&order_id=${orderId}`)).json();
+            const det = await (await fetch(`controllers/POSController.php?action=getOrderDetails&order_id=${orderId}&_=${Date.now()}`)).json();
             const items = (det.items || []).map(i => ({
                 ItemName: i.ItemName,
                 UnitPrice: parseFloat(i.UnitPrice) || 0,
                 Quantity: parseInt(i.Quantity) || 0,
-                Notes: i.Notes
+                Notes: i.Notes,
+                Status: i.Status
             }));
+            const activeItems = items.filter(i => (i.Status || '').toLowerCase() !== 'cancelled');
             printReceipt({
                 orderId: det.order?.OrderID,
                 orderNumber: det.order?.OrderNumber,
@@ -350,9 +352,9 @@ async function submitPayment() {
                 cashier: det.order?.CashierName || '',
                 date: det.order?.OrderDate,
                 items,
-                subtotal: items.reduce((s,it)=>s+(it.UnitPrice*it.Quantity),0),
+                subtotal: activeItems.reduce((s,it)=>s+(it.UnitPrice*it.Quantity),0),
                 tax: 0,
-                total: items.reduce((s,it)=>s+(it.UnitPrice*it.Quantity),0),
+                total: activeItems.reduce((s,it)=>s+(it.UnitPrice*it.Quantity),0),
                 payment: { method, amountPaid: amt, change: amt - total }
             });
             closePaymentModal();
@@ -365,15 +367,17 @@ async function submitPayment() {
 
 async function viewAndPrint(orderId) {
     try {
-        const res = await fetch(`controllers/POSController.php?action=getOrderDetails&order_id=${orderId}`);
+        const res = await fetch(`controllers/POSController.php?action=getOrderDetails&order_id=${orderId}&_=${Date.now()}`);
         const data = await res.json();
         if (!data || !data.order) { alert('Order not found'); return; }
         const items = (data.items || []).map(i => ({
             ItemName: i.ItemName,
             UnitPrice: parseFloat(i.UnitPrice) || 0,
             Quantity: parseInt(i.Quantity) || 0,
-            Notes: i.Notes
+            Notes: i.Notes,
+            Status: i.Status
         }));
+        const activeItems = items.filter(i => (i.Status || '').toLowerCase() !== 'cancelled');
         printReceipt({
             orderId: data.order.OrderID,
             orderNumber: data.order.OrderNumber,
@@ -382,9 +386,9 @@ async function viewAndPrint(orderId) {
             cashier: data.order.CashierName || '',
             date: data.order.OrderDate,
             items,
-            subtotal: items.reduce((s,it)=>s+(it.UnitPrice*it.Quantity),0),
+            subtotal: activeItems.reduce((s,it)=>s+(it.UnitPrice*it.Quantity),0),
             tax: 0,
-            total: items.reduce((s,it)=>s+(it.UnitPrice*it.Quantity),0),
+            total: activeItems.reduce((s,it)=>s+(it.UnitPrice*it.Quantity),0),
             payment: data.order.Status === 'Paid' ? { 
                 method: data.order.PaymentMethod || 'Cash',
                 amountPaid: parseFloat(data.order.AmountPaid) || data.order.TotalAmount,
@@ -398,7 +402,7 @@ async function viewAndPrint(orderId) {
 
 async function viewOrderDetails(orderId) {
     try {
-        const res = await fetch(`controllers/POSController.php?action=getOrderDetails&order_id=${orderId}`);
+        const res = await fetch(`controllers/POSController.php?action=getOrderDetails&order_id=${orderId}&_=${Date.now()}`);
         const data = await res.json();
         if (!data || !data.order) { alert('Order not found'); return; }
         
@@ -410,10 +414,11 @@ async function viewOrderDetails(orderId) {
 
 function showOrderDetailsModal(data) {
     const modal = document.createElement('div');
-    modal.className = 'modal';
+    modal.className = 'modal order-details-modal';
     modal.style.cssText = `
         display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-        background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center;
+        background: rgba(15, 23, 42, 0.75); z-index: 9999; align-items: center; justify-content: center;
+        backdrop-filter: blur(4px);
     `;
     
     const itemsHtml = (data.items || []).map((item, index) => {
@@ -435,18 +440,21 @@ function showOrderDetailsModal(data) {
         }
 
         return `
-        <div class="order-item-row" data-item-id="${item.OrderDetailID}" data-index="${index}">
-            <div class="item-info">
-                <div class="item-name">${item.ItemName}</div>
-                <div class="item-details">
-                    Qty: ${item.Quantity} × ₱${parseFloat(item.UnitPrice).toFixed(2)} = ₱${(item.Quantity * item.UnitPrice).toFixed(2)}
+        <div class="order-item-row" data-item-id="${item.OrderDetailID}" data-index="${index}" style="display: flex; justify-content: space-between; align-items: flex-start; padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 12px; transition: all 0.2s ease;">
+            <div class="item-info" style="flex: 1;">
+                <div class="item-name" style="font-weight: 700; color: #1e293b; font-size: 16px; margin-bottom: 6px;">${item.ItemName}</div>
+                <div class="item-details" style="color: #475569; font-size: 14px; margin-bottom: 8px; font-weight: 500;">
+                    <span style="display: inline-block; background: #f1f5f9; padding: 2px 8px; border-radius: 6px; color: #334155; margin-right: 8px;">Qty: <strong>${item.Quantity}</strong></span> 
+                    <span style="margin: 0 4px; color: #94a3b8;">&times;</span> 
+                    <span style="color: #64748b;">₱${parseFloat(item.UnitPrice).toFixed(2)}</span>
                 </div>
-                ${notesDisplay ? `<div class="item-notes">${notesDisplay}</div>` : ''}
+                ${notesDisplay ? `<div class="item-notes" style="margin-top: 8px; padding: 8px 12px; background: #fdf4ff; border-left: 4px solid #d946ef; border-radius: 6px; color: #86198f; font-size: 13px; font-style: normal; line-height: 1.4;">${notesDisplay}</div>` : ''}
             </div>
-            <div class="item-actions">
+            <div class="item-actions" style="margin-left: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                <div style="font-weight: 700; color: #0f172a; font-size: 16px; margin-bottom: 8px; background: #f8fafc; padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0;">₱${(item.Quantity * item.UnitPrice).toFixed(2)}</div>
                 ${data.order.Status !== 'Paid' && data.order.Status !== 'Ready' ? `
-                    <button class="btn btn-sm btn-warning" onclick="cancelOrderItem(${item.OrderDetailID}, ${index})" title="Cancel Item">
-                        <i class="fas fa-times"></i> Cancel
+                    <button class="btn btn-sm btn-warning cancel-btn-hover" onclick="cancelOrderItem(${item.OrderDetailID}, ${index}, ${data.order.OrderID})" title="Cancel Item" style="background: white; color: #ef4444; border: 1px solid #ef4444; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                        <i class="fas fa-minus-circle"></i> Cancel
                     </button>
                 ` : ''}
             </div>
@@ -454,35 +462,72 @@ function showOrderDetailsModal(data) {
     `}).join('');
     
     modal.innerHTML = `
-        <div style="background: white; border-radius: 12px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; padding: 0;">
-            <div style="padding: 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h3 style="margin: 0;">Order #${data.order.OrderNumber}</h3>
-                    <div style="color: #64748b; font-size: 14px;">
-                        Table: ${data.order.TableNumber || 'Take Out'} | Status: ${data.order.Status}
+        <div style="background: #f8fafc; border-radius: 16px; width: 95%; max-width: 650px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); overflow: hidden; animation: modalPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
+            <div style="padding: 24px; background: #ffffff; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <div style="background: #e0f2fe; color: #0284c7; width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                        <i class="fas fa-receipt"></i>
+                    </div>
+                    <div>
+                        <h3 style="margin: 0; color: #0f172a; font-size: 22px; font-weight: 700;">Order #${data.order.OrderNumber}</h3>
+                        <div style="display: flex; gap: 8px; margin-top: 6px;">
+                            <span style="background: #f1f5f9; color: #475569; padding: 2px 10px; border-radius: 12px; font-size: 13px; font-weight: 600; border: 1px solid #e2e8f0;">
+                                <i class="fas fa-chair" style="margin-right:4px;"></i>${data.order.TableNumber || 'Take Out'}
+                            </span>
+                            <span style="background: #dcfce7; color: #166534; padding: 2px 10px; border-radius: 12px; font-size: 13px; font-weight: 600; border: 1px solid #bbf7d0;">
+                                ${data.order.Status}
+                            </span>
+                        </div>
                     </div>
                 </div>
-                <button onclick="this.closest('.modal').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">×</button>
+                <button onclick="this.closest('.modal').remove()" class="modal-close-hover" style="background: #f1f5f9; border: none; width: 36px; height: 36px; border-radius: 50%; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s;">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
-            <div style="padding: 20px;">
-                <h4 style="margin-bottom: 15px;">Order Items</h4>
+            
+            <div style="padding: 24px; overflow-y: auto; flex: 1; background: #f8fafc;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h4 style="margin: 0; color: #475569; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;">Items List</h4>
+                    <span style="color: #64748b; font-size: 13px; font-weight: 500;">${data.items ? data.items.length : 0} items</span>
+                </div>
                 <div class="order-items-list">
                     ${itemsHtml}
                 </div>
-                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
-                    <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: bold;">
-                        <span>Total:</span>
-                        <span>₱${parseFloat(data.order.TotalAmount || 0).toFixed(2)}</span>
+            </div>
+            
+            <div style="padding: 24px; background: #ffffff; border-top: 1px solid #e2e8f0; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #1e293b; padding: 20px; border-radius: 12px; color: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                    <div style="display: flex; flex-direction: column;">
+                        <span style="font-size: 14px; color: #94a3b8; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Grand Total</span>
+                        <span style="font-size: 28px; font-weight: 800; color: #ffffff; line-height: 1;">₱${parseFloat(data.order.TotalAmount || 0).toFixed(2)}</span>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 13px; color: #94a3b8; display: block; margin-bottom: 4px;">Date</span>
+                        <span style="font-size: 14px; font-weight: 500; color: #cbd5e1;">${new Date(data.order.OrderDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                     </div>
                 </div>
             </div>
         </div>
+        <style>
+            @keyframes modalPop {
+                from { opacity: 0; transform: scale(0.95) translateY(10px); }
+                to { opacity: 1; transform: scale(1) translateY(0); }
+            }
+            .cancel-btn-hover:hover {
+                background: #ef4444 !important;
+                color: white !important;
+            }
+            .modal-close-hover:hover {
+                background: #e2e8f0 !important;
+                color: #0f172a !important;
+            }
+        </style>
     `;
     
     document.body.appendChild(modal);
 }
 
-async function cancelOrderItem(itemDetailId, index) {
+async function cancelOrderItem(itemDetailId, index, orderId) {
     if (!confirm('Are you sure you want to cancel this item?')) return;
     
     try {
@@ -499,14 +544,16 @@ async function cancelOrderItem(itemDetailId, index) {
         const result = await res.json();
         
         if (result.success) {
-            // Remove the item row from the modal entirely
-            const itemRow = document.querySelector(`[data-item-id="${itemDetailId}"]`);
-            if (itemRow) {
-                itemRow.style.transition = 'opacity 0.3s ease';
-                itemRow.style.opacity = '0';
-                setTimeout(() => itemRow.remove(), 300);
+            // Remove the current modal to prevent stacking
+            const currentModal = document.querySelector('.order-details-modal');
+            if (currentModal) {
+                currentModal.remove();
             }
-            // Refresh the orders list
+            
+            // Re-fetch and reopen the modal. This ensures quantities, totals, and UI rows are perfectly synchronized instantly.
+            viewOrderDetails(orderId);
+            
+            // Refresh the background orders grid
             loadOrders();
         } else {
             alert('Failed to cancel item: ' + (result.message || 'Unknown error'));

@@ -65,6 +65,97 @@ class Order {
         
         return $stmt->execute();
     }
+
+    public function archiveAndDeleteSalesForDate(string $date): array
+    {
+        $this->conn->beginTransaction();
+        try {
+            // Archive only PAID orders
+            $paidOrdersStmt = $this->conn->prepare(
+                "SELECT OrderID, OrderDate, TotalAmount FROM " . $this->table_name . " WHERE DATE(OrderDate) = :d AND Status = 'Paid'"
+            );
+            $paidOrdersStmt->bindParam(':d', $date);
+            $paidOrdersStmt->execute();
+            $paidOrders = $paidOrdersStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+            // Identify all orders to delete (Paid or Deleted)
+            $delOrdersStmt = $this->conn->prepare(
+                "SELECT OrderID FROM " . $this->table_name . " WHERE DATE(OrderDate) = :d AND Status IN ('Paid','Deleted')"
+            );
+            $delOrdersStmt->bindParam(':d', $date);
+            $delOrdersStmt->execute();
+            $ordersToDelete = $delOrdersStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+            $checkCol = $this->conn->query("SHOW COLUMNS FROM orderdetails LIKE 'Status'");
+            $hasStatusCol = $checkCol && ($checkCol->fetch(PDO::FETCH_ASSOC) !== false);
+
+            $archiveRecords = [];
+            $itemsArchived = 0;
+
+            foreach ($paidOrders as $o) {
+                $oid = (int)$o['OrderID'];
+                $itemsQuery = "SELECT od.ItemID, mi.ItemName, od.Quantity, od.UnitPrice FROM orderdetails od JOIN menuitems mi ON mi.ItemID = od.ItemID WHERE od.OrderID = :oid";
+                if ($hasStatusCol) {
+                    $itemsQuery .= " AND (od.Status IS NULL OR od.Status != 'Cancelled')";
+                }
+                $itemsStmt = $this->conn->prepare($itemsQuery);
+                $itemsStmt->bindParam(':oid', $oid);
+                $itemsStmt->execute();
+                $items = $itemsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+                $itemsList = [];
+                foreach ($items as $it) {
+                    $itemsList[] = [
+                        'item_id' => (int)$it['ItemID'],
+                        'item_name' => $it['ItemName'],
+                        'quantity' => (int)$it['Quantity'],
+                        'unit_price' => (float)$it['UnitPrice'],
+                    ];
+                }
+                $itemsArchived += count($itemsList);
+
+                $archiveRecords[] = [
+                    'order_date' => $o['OrderDate'],
+                    'total_amount' => (float)$o['TotalAmount'],
+                    'items' => $itemsList,
+                ];
+            }
+
+            $file = __DIR__ . '/../data/sales.json';
+            $existing = [];
+            if (file_exists($file)) {
+                $raw = file_get_contents($file);
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    $existing = $decoded;
+                }
+            }
+            $newData = array_merge($existing, $archiveRecords);
+            $ok = file_put_contents($file, json_encode($newData, JSON_PRETTY_PRINT));
+            if ($ok === false) {
+                throw new Exception('Failed to write archive file');
+            }
+
+            $ids = array_column($ordersToDelete, 'OrderID');
+            if (empty($ids)) {
+                $this->conn->commit();
+                return ['archived_orders' => count($paidOrders), 'archived_items' => $itemsArchived];
+            }
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+            $delDetails = $this->conn->prepare("DELETE FROM orderdetails WHERE OrderID IN ($placeholders)");
+            $delDetails->execute($ids);
+
+            $delOrders = $this->conn->prepare("DELETE FROM " . $this->table_name . " WHERE OrderID IN ($placeholders)");
+            $delOrders->execute($ids);
+
+            $this->conn->commit();
+            return ['archived_orders' => count($paidOrders), 'archived_items' => $itemsArchived];
+        } catch (Exception $e) {
+            $this->conn->rollBack();
+            throw $e;
+        }
+    }
     
     public function getOrderItems($excludeCancelled = false) {
         $query = "SELECT od.*, mi.ItemName 
@@ -74,7 +165,7 @@ class Order {
 
         // Query to check if Status column exists
         $checkCol = $this->conn->query("SHOW COLUMNS FROM orderdetails LIKE 'Status'");
-        $hasStatusCol = $checkCol && $checkCol->rowCount() > 0;
+        $hasStatusCol = $checkCol && ($checkCol->fetch(PDO::FETCH_ASSOC) !== false);
 
         // Exclude cancelled items if requested AND the column exists
         if ($excludeCancelled && $hasStatusCol) {
@@ -155,7 +246,7 @@ class Order {
     public function getDailySales($date) {
         $query = "SELECT COUNT(*) as total_orders, SUM(TotalAmount) as total_sales 
                   FROM " . $this->table_name . " 
-                  WHERE DATE(OrderDate) = :date AND Status IN ('Paid', 'Deleted')";
+                  WHERE DATE(OrderDate) = :date AND Status = 'Paid'";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(":date", $date);
@@ -172,10 +263,31 @@ class Order {
         ];
     }
 
+    public function getOverallSales() {
+        $query = "SELECT SUM(TotalAmount) as overall_sales 
+                  FROM " . $this->table_name . " 
+                  WHERE Status = 'Paid'";
+        
+        $stmt = $this->conn->prepare($query);
+        $stmt->execute();
+        
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $liveOverall = (float)($row['overall_sales'] ?? 0);
+
+        // Include archived sales
+        $archivedSales = 0.0;
+        $records = $this->loadArchivedSales();
+        foreach ($records as $rec) {
+            $archivedSales += isset($rec['total_amount']) ? (float)$rec['total_amount'] : 0.0;
+        }
+
+        return $liveOverall + $archivedSales;
+    }
+
     public function getSalesHistory($days = 7) {
         $query = "SELECT DATE(OrderDate) as sale_date, SUM(TotalAmount) as total_sales 
                   FROM " . $this->table_name . " 
-                  WHERE Status IN ('Paid', 'Ready', 'Deleted') 
+                  WHERE Status = 'Paid' 
                   AND OrderDate >= DATE_SUB(CURDATE(), INTERVAL :days DAY)
                   GROUP BY DATE(OrderDate)
                   ORDER BY DATE(OrderDate) ASC";
@@ -209,12 +321,18 @@ class Order {
     }
     
     public function getMostPurchasedItems($date, $limit = 5) {
+        $checkCol = $this->conn->query("SHOW COLUMNS FROM orderdetails LIKE 'Status'");
+        $hasStatusCol = $checkCol && ($checkCol->fetch(PDO::FETCH_ASSOC) !== false);
+
         $query = "SELECT mi.ItemName, SUM(od.Quantity) as total_quantity, SUM(od.Quantity * od.UnitPrice) as total_revenue
                   FROM orderdetails od
                   JOIN menuitems mi ON od.ItemID = mi.ItemID
                   JOIN orders o ON od.OrderID = o.OrderID
-                  WHERE DATE(o.OrderDate) = :date AND o.Status IN ('Paid', 'Ready', 'Deleted')
-                  GROUP BY mi.ItemName";
+                  WHERE DATE(o.OrderDate) = :date AND o.Status = 'Paid'";
+        if ($hasStatusCol) {
+            $query .= " AND (od.Status IS NULL OR od.Status != 'Cancelled')";
+        }
+        $query .= " GROUP BY mi.ItemName";
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(":date", $date);
@@ -248,6 +366,7 @@ class Order {
     }
     
     public function getKitchenOrders() {
+        // First get orders
         $query = "SELECT o.*, u.FullName as CashierName, ot.TypeName 
                   FROM " . $this->table_name . " o
                   LEFT JOIN users u ON o.UserID = u.UserID
@@ -256,9 +375,41 @@ class Order {
                   ORDER BY o.OrderDate ASC";
         
         $stmt = $this->conn->prepare($query);
-        $stmt->execute();
-        
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt->execute();
+            $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (empty($orders)) return [];
+
+            // Get all items for these orders in one query to make it FAST (1-second sync)
+            $orderIds = array_column($orders, 'OrderID');
+            $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+            
+            $itemQuery = "SELECT od.*, mi.ItemName
+                          FROM orderdetails od
+                          JOIN menuitems mi ON od.ItemID = mi.ItemID
+                          WHERE od.OrderID IN ($placeholders) AND (od.Status IS NULL OR od.Status != 'Cancelled')";
+            
+            $itemStmt = $this->conn->prepare($itemQuery);
+            $itemStmt->execute($orderIds);
+            $allItems = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Group items by OrderID
+            $itemsByOrder = [];
+            foreach ($allItems as $item) {
+                $itemsByOrder[$item['OrderID']][] = $item;
+            }
+
+            // Attach items to orders
+            foreach ($orders as &$o) {
+                $o['KitchenItems'] = $itemsByOrder[$o['OrderID']] ?? [];
+            }
+
+            return $orders;
+        } catch (Exception $e) {
+            error_log("Kitchen refresh error: " . $e->getMessage());
+            return [];
+        }
     }
     
     public function updateOrderStatus($orderId, $status) {
@@ -374,10 +525,19 @@ class Order {
     }
     
     public function updateTotalAmount() {
-        // Calculate total from order details
-        $query = "SELECT SUM(Quantity * UnitPrice) as total 
-                  FROM orderdetails 
-                  WHERE OrderID = :order_id";
+        // First check if Status column exists
+        $checkCol = $this->conn->query("SHOW COLUMNS FROM orderdetails LIKE 'Status'");
+        $hasStatusCol = $checkCol && ($checkCol->fetch(PDO::FETCH_ASSOC) !== false);
+
+        if ($hasStatusCol) {
+            $query = "SELECT SUM(Quantity * UnitPrice) as total 
+                      FROM orderdetails 
+                      WHERE OrderID = :order_id AND COALESCE(Status, 'Active') != 'Cancelled'";
+        } else {
+            $query = "SELECT SUM(Quantity * UnitPrice) as total 
+                      FROM orderdetails 
+                      WHERE OrderID = :order_id";
+        }
         
         $stmt = $this->conn->prepare($query);
         $stmt->bindParam(":order_id", $this->OrderID);
