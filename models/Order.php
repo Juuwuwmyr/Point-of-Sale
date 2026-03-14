@@ -218,6 +218,25 @@ class Order {
         
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    /**
+     * Get recent orders for dashboard (including Deleted) so the list does not change
+     * when an order is deleted from the orders page.
+     */
+    public function getRecentOrdersForDashboard(string $date, int $limit = 10): array
+    {
+        $query = "SELECT o.*, u.FullName as CashierName, ot.TypeName 
+                  FROM " . $this->table_name . " o
+                  LEFT JOIN users u ON o.UserID = u.UserID
+                  LEFT JOIN ordertypes ot ON o.OrderTypeID = ot.OrderTypeID
+                  WHERE DATE(o.OrderDate) = DATE(:datefilter)
+                  ORDER BY o.OrderDate DESC
+                  LIMIT " . (int) $limit;
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindValue(':datefilter', $date);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
     
     public function getById($id) {
         $query = "SELECT o.*, u.FullName as CashierName, ot.TypeName 
@@ -242,6 +261,17 @@ class Order {
         
         return $stmt->execute();
     }
+
+    /**
+     * Mark all Paid orders as Deleted so they are excluded from dashboard/reports.
+     * Used when resetting dashboard to zero.
+     */
+    public function markAllPaidAsDeleted(): int
+    {
+        $stmt = $this->conn->prepare("UPDATE " . $this->table_name . " SET Status = 'Deleted' WHERE Status = 'Paid'");
+        $stmt->execute();
+        return (int) $stmt->rowCount();
+    }
     
     public function getDailySales($date) {
         $query = "SELECT COUNT(*) as total_orders, SUM(TotalAmount) as total_sales 
@@ -260,6 +290,40 @@ class Order {
         return [
             'total_orders' => (int)$row['total_orders'] + $archived['total_orders'],
             'total_sales'  => (float)$row['total_sales'] + $archived['total_sales'],
+        ];
+    }
+
+    /**
+     * Sales for the last N days (DB Paid + data/sales.json).
+     * Used for dashboard/reports week and as main source from sales.json.
+     */
+    public function getWeekSales(int $days = 7): array
+    {
+        $query = "SELECT COUNT(*) as total_orders, COALESCE(SUM(TotalAmount), 0) as total_sales 
+                  FROM " . $this->table_name . " 
+                  WHERE Status = 'Paid' 
+                  AND OrderDate >= DATE_SUB(CURDATE(), INTERVAL :days DAY)";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':days', $days, PDO::PARAM_INT);
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['total_orders' => 0, 'total_sales' => 0];
+
+        $archivedOrders = 0;
+        $archivedSales = 0.0;
+        $records = $this->loadArchivedSales();
+        $cutoff = (new DateTime())->modify("-{$days} days");
+
+        foreach ($records as $rec) {
+            if (empty($rec['order_date'])) continue;
+            $dt = new DateTime($rec['order_date']);
+            if ($dt < $cutoff) continue;
+            $archivedOrders++;
+            $archivedSales += isset($rec['total_amount']) ? (float)$rec['total_amount'] : 0.0;
+        }
+
+        return [
+            'total_orders' => (int)$row['total_orders'] + $archivedOrders,
+            'total_sales'  => (float)$row['total_sales'] + $archivedSales,
         ];
     }
 

@@ -463,6 +463,27 @@
     padding-left: 32px;
 }
 
+#payAmount {
+    width: 100%;
+    font-size: 1.25rem;
+    padding: 14px 16px 14px 36px;
+    height: 56px;
+    border-radius: var(--radius-md);
+}
+
+.currency-symbol {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+#payMethod {
+    width: 100%;
+    font-size: 1.15rem;
+    height: 56px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+}
+
 .change-display {
     margin: 0 24px 24px;
     padding: 16px;
@@ -493,4 +514,3 @@
     display: flex;
     gap: 12px;
 }
-

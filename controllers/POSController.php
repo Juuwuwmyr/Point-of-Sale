@@ -318,17 +318,47 @@ class POSController {
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
     }
+
+    /**
+     * Reset dashboard to zero: empty sales.json and mark all Paid orders as Deleted.
+     * Admin only.
+     */
+    public function resetDashboard() {
+        header('Content-Type: application/json');
+        if (!($_SESSION['is_admin'] ?? false)) {
+            echo json_encode(['success' => false, 'message' => 'Admin only']);
+            return;
+        }
+        try {
+            $salesFile = __DIR__ . '/../data/sales.json';
+            $dataDir = dirname($salesFile);
+            if (!is_dir($dataDir)) {
+                @mkdir($dataDir, 0755, true);
+            }
+            file_put_contents($salesFile, "[]");
+            $updated = $this->order->markAllPaidAsDeleted();
+            echo json_encode([
+                'success' => true,
+                'message' => 'Dashboard reset to zero.',
+                'orders_marked_deleted' => $updated,
+            ]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
     
     public function getDashboardStats() {
         header('Content-Type: application/json');
         try {
             $today = date('Y-m-d');
+            // Today: DB + data/sales.json (main source)
             $daily = $this->order->getDailySales($today);
             $totalOrders = isset($daily['total_orders']) ? (int)$daily['total_orders'] : 0;
             $totalSales = isset($daily['total_sales']) ? (float)$daily['total_sales'] : 0.0;
-            
+            // Week (last 7 days) and overall from DB + sales.json
+            $week = $this->order->getWeekSales(7);
             $overallSales = $this->order->getOverallSales();
-            
+
             $todayOrders = $this->order->getAll('', $today);
             $openOrders = 0;
             foreach ($todayOrders as $o) {
@@ -341,7 +371,8 @@ class POSController {
             $salesHistory = $this->order->getSalesHistory(7);
             // Retrieving 999 to show all items instead of limiting to 5
             $topItems = $this->order->getMostPurchasedItems($today, 999);
-            $recentOrders = array_slice($todayOrders, 0, 10);
+            // Recent orders include Deleted so the list is not affected when user deletes from orders page
+            $recentOrders = $this->order->getRecentOrdersForDashboard($today, 10);
             
             echo json_encode([
                 'success' => true,
@@ -349,6 +380,8 @@ class POSController {
                     'totals' => [
                         'total_orders' => $totalOrders,
                         'total_sales' => $totalSales,
+                        'week_orders' => (int)($week['total_orders'] ?? 0),
+                        'week_sales' => (float)($week['total_sales'] ?? 0),
                         'overall_sales' => $overallSales,
                         'open_orders' => $openOrders,
                     ],
@@ -512,7 +545,58 @@ class POSController {
             echo json_encode(['success' => false, 'message' => 'Invalid order id']);
             return;
         }
+        $order = $this->order->getById($orderId);
         $this->order->OrderID = $orderId;
+        $items = $this->order->getOrderItems(true);
+        $itemsPack = [];
+        foreach ($items as $it) {
+            $itemsPack[] = [
+                'item_id' => (int)($it['ItemID'] ?? 0),
+                'item_name' => $it['ItemName'] ?? '',
+                'quantity' => (int)($it['Quantity'] ?? 0),
+                'unit_price' => (float)($it['UnitPrice'] ?? 0),
+                'notes' => $it['Notes'] ?? ''
+            ];
+        }
+        $delRecord = [
+            'order_id' => (int)($order['OrderID'] ?? $orderId),
+            'order_number' => $order['OrderNumber'] ?? null,
+            'order_date' => $order['OrderDate'] ?? date('Y-m-d H:i:s'),
+            'table_number' => $order['TableNumber'] ?? '',
+            'cashier' => $order['CashierName'] ?? '',
+            'status' => 'Deleted',
+            'total_amount' => (float)($order['TotalAmount'] ?? 0),
+            'deleted_at' => date('Y-m-d H:i:s'),
+            'items' => $itemsPack
+        ];
+        $deletedFile = __DIR__ . '/../data/deleted_orders.json';
+        $existing = [];
+        if (file_exists($deletedFile)) {
+            $raw = file_get_contents($deletedFile);
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) $existing = $decoded;
+        }
+        $existing[] = $delRecord;
+        file_put_contents($deletedFile, json_encode($existing, JSON_PRETTY_PRINT));
+
+        $salesFile = __DIR__ . '/../data/sales.json';
+        $dataDir = dirname($salesFile);
+        if (!is_dir($dataDir)) {
+            @mkdir($dataDir, 0755, true);
+        }
+        $salesExisting = [];
+        if (file_exists($salesFile)) {
+            $rawS = file_get_contents($salesFile);
+            $decodedS = json_decode($rawS, true);
+            if (is_array($decodedS)) $salesExisting = $decodedS;
+        }
+        $salesExisting[] = [
+            'order_date'   => $delRecord['order_date'],
+            'total_amount' => $delRecord['total_amount'],
+            'items'        => $itemsPack,
+        ];
+        file_put_contents($salesFile, json_encode($salesExisting, JSON_PRETTY_PRINT));
+
         if ($this->order->updateStatus('Deleted')) {
             echo json_encode(['success' => true]);
         } else {
@@ -563,6 +647,9 @@ case 'updateOrderStatus':
             break;
         case 'archiveAndClearToday':
             $controller->archiveAndClearToday();
+            break;
+        case 'resetDashboard':
+            $controller->resetDashboard();
             break;
         default:
             $controller->index();

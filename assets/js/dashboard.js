@@ -1,6 +1,29 @@
 document.addEventListener('DOMContentLoaded', () => {
     loadDashboard();
+    const btnReset = document.getElementById('btnResetDashboard');
+    if (btnReset) {
+        btnReset.addEventListener('click', resetDashboard);
+    }
 });
+
+async function resetDashboard() {
+    if (!confirm('Reset dashboard to zero? This will clear data/sales.json and mark all Paid orders as Deleted. Reports and dashboard will show zero. This cannot be undone.')) {
+        return;
+    }
+    try {
+        const response = await fetch('controllers/POSController.php?action=resetDashboard');
+        const result = await response.json();
+        if (result.success) {
+            alert(result.message || 'Dashboard reset to zero.');
+            loadDashboard();
+        } else {
+            alert('Failed: ' + (result.message || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Reset error:', error);
+        alert('Error resetting dashboard.');
+    }
+}
 
 async function loadDashboard() {
     try {
@@ -25,6 +48,7 @@ async function loadDashboard() {
 function updateStatCards(totals) {
     const totalOrdersEl = document.getElementById('stat-total-orders');
     const totalSalesEl = document.getElementById('stat-total-sales');
+    const weekSalesEl = document.getElementById('stat-week-sales');
     const overallSalesEl = document.getElementById('stat-overall-sales');
     const openOrdersEl = document.getElementById('stat-open-orders');
 
@@ -34,9 +58,11 @@ function updateStatCards(totals) {
     if (totalSalesEl) {
         totalSalesEl.textContent = formatCurrency(totals.total_sales || 0);
     }
+    if (weekSalesEl) {
+        weekSalesEl.textContent = formatCurrency(totals.week_sales || 0);
+    }
     if (overallSalesEl) {
-        const value = totals.overall_sales || 0;
-        overallSalesEl.textContent = formatCurrency(value);
+        overallSalesEl.textContent = formatCurrency(totals.overall_sales || 0);
     }
     if (openOrdersEl) {
         openOrdersEl.textContent = (totals.open_orders || 0) + ' open orders';
@@ -95,6 +121,7 @@ function renderRecentOrders(orders) {
         const status = String(order.Status || '').toLowerCase();
         const pillClass = status === 'paid' ? 'paid'
             : status === 'ready' ? 'ready'
+            : status === 'deleted' ? 'deleted'
             : 'pending';
 
         const orderDate = order.OrderDate ? new Date(order.OrderDate) : null;

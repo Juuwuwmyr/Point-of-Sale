@@ -17,6 +17,9 @@ ob_start();
                 Today’s performance overview, sales trend, and recent orders.
             </div>
         </div>
+        <?php if (!empty($_SESSION['is_admin'])): ?>
+        <button type="button" class="btn btn-outline-danger btn-reset-dashboard" id="btnResetDashboard" title="Clear all sales data and set dashboard to zero">Reset dashboard</button>
+        <?php endif; ?>
     </div>
 
     <div class="dashboard-grid">
@@ -37,6 +40,16 @@ ob_start();
             <div class="stat-content">
                 <div class="stat-label">TODAY'S SALES</div>
                 <div class="stat-number" id="stat-total-sales">₱0.00</div>
+            </div>
+        </div>
+
+        <div class="stat-card week">
+            <div class="stat-icon">
+                📅
+            </div>
+            <div class="stat-content">
+                <div class="stat-label">SALES (7 DAYS)</div>
+                <div class="stat-number" id="stat-week-sales">₱0.00</div>
             </div>
         </div>
 

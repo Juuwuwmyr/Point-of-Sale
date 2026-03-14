@@ -292,13 +292,13 @@
 
         /* Menu Section */
         .menu-section {
-            flex: 3; /* Increased from 2 to 3 to make it wider */
+            flex: 3;
             background: white;
             border-radius: 12px;
-            padding: 12px; /* Reduced from 20px */
+            padding: 12px;
             display: flex;
             flex-direction: column;
-            gap: 12px; /* Reduced from 20px */
+            gap: 12px;
             border: 2px solid #e2e8f0;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
             overflow: hidden;
@@ -335,10 +335,10 @@
         }
 
           .categories-sidebar {
-            width: 160px; /* Reduced from 200px to save space */
-            background: #475569; /* Slate Gray to match Kitchen cards */
+            width: 160px;
+            background: #475569;
             border-radius: 12px;
-            padding: 12px; /* Reduced padding from 16px */
+            padding: 12px;
             display: flex;
             flex-direction: column;
             gap: 10px; /* Reduced gap from 12px */
@@ -399,14 +399,14 @@
         }
 
 
-       /* Category Card - LIGHTER FOR READABILITY */
+       /* Category Card */
         .category-card {
             display: flex;
-            flex-direction: column; /* Stack vertically */
+            flex-direction: column;
             align-items: flex-start;
-            gap: 4px; /* Reduced from 6px */
-            padding: 10px 12px; /* Reduced from 12px 14px */
-            background: #f8fafc; /* Light background for the card */
+            gap: 4px;
+            padding: 10px 12px;
+            background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
             cursor: pointer;
@@ -453,7 +453,7 @@
         /* Category Icon - LEFT side */
         .category-icon {
             font-size: 18px;
-            color: #475569; /* Slate color for the icon */
+            color: #475569;
             width: 32px;
             height: 32px;
             display: flex;
@@ -726,11 +726,11 @@
 
         /* Order Section */
         .order-section {
-            width: 320px; /* Increased from 280px to make it wider */
-            flex: none; /* Disable flex growth */
-            background: #475569; /* Slate Gray to match Sidebar and Kitchen */
+            width: 320px;
+            flex: none;
+            background: #475569;
             border-radius: 12px;
-            padding: 16px; /* Slightly reduced padding to save space */
+            padding: 16px;
             display: flex;
             flex-direction: column;
             gap: 16px;
@@ -871,7 +871,7 @@
         }
 
         .order-item {
-            background: #334155; /* Slightly darker slate for items */
+            background: #334155;
             border: 1px solid #475569;
             border-radius: 8px;
             padding: 14px;
@@ -940,7 +940,7 @@
 
         .order-item-qty {
             font-weight: 700;
-            color: #f59e0b; /* Yellow/Amber to match active state */
+            color: #f59e0b;
             background: #1e293b;
             padding: 4px 10px;
             border-radius: 6px;

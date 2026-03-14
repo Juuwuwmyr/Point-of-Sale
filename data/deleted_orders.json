@@ -1,0 +1,66 @@
+[
+    {
+        "order_id": 868,
+        "order_number": "ORD-2026031408441341",
+        "order_date": "2026-03-14 08:44:13",
+        "table_number": "8",
+        "cashier": "Alex Corteza",
+        "status": "Deleted",
+        "total_amount": 459,
+        "deleted_at": "2026-03-14 08:52:36",
+        "items": [
+            {
+                "item_id": 426,
+                "item_name": "ALOHA GIANT SEAFOOD BURGER",
+                "quantity": 1,
+                "unit_price": 459,
+                "notes": ""
+            }
+        ]
+    },
+    {
+        "order_id": 869,
+        "order_number": "ORD-2026031409025348",
+        "order_date": "2026-03-14 09:02:53",
+        "table_number": "5",
+        "cashier": "Alex Corteza",
+        "status": "Deleted",
+        "total_amount": 758,
+        "deleted_at": "2026-03-14 09:03:29",
+        "items": [
+            {
+                "item_id": 427,
+                "item_name": "ALOHA GIANT MOZZARELLA BURGER",
+                "quantity": 1,
+                "unit_price": 299,
+                "notes": ""
+            },
+            {
+                "item_id": 426,
+                "item_name": "ALOHA GIANT SEAFOOD BURGER",
+                "quantity": 1,
+                "unit_price": 459,
+                "notes": ""
+            }
+        ]
+    },
+    {
+        "order_id": 870,
+        "order_number": "ORD-2026031409104771",
+        "order_date": "2026-03-14 09:10:47",
+        "table_number": "2",
+        "cashier": "Alex Corteza",
+        "status": "Deleted",
+        "total_amount": 124,
+        "deleted_at": "2026-03-14 09:10:55",
+        "items": [
+            {
+                "item_id": 410,
+                "item_name": "ALOHA BEEF BURGER",
+                "quantity": 1,
+                "unit_price": 124,
+                "notes": ""
+            }
+        ]
+    }
+]
